@@ -34,6 +34,7 @@ Same **routing and shell** as production Comms (`/app/*` → `AppShell`: Program
 
 | Area | Covered in demo |
 |------|------------------|
+| Templates | **7** product flow templates (`src/demo/supplier-template-flows.ts`) — General Staffing, Healthcare, recert, multi-state, 1099, MSA+SOW, post-approval |
 | Stable IDs | `supplier_onboarding_id` on session metadata + People `reference` (`soi-*`) |
 | Intake | People + Integrations CSV import (mocked success) |
 | Comms setup | Program dashboard: channel, checklist, reminders, validation narrative |

@@ -120,6 +120,8 @@ export function SupplierProgramDashboard() {
           <p className="text-xs text-gray-500 mb-3">
             Session type: <span className="font-semibold text-gray-700">Supplier onboarding</span> · Channel:{' '}
             <span className="font-semibold text-gray-700">email + resumable web link</span>
+            . Open <strong>Templates</strong> in the sidebar for <strong>seven</strong> AgileOne program flows (General Staffing,
+            Healthcare, recertification, multi-state, 1099, MSA+SOW, post-approval).
           </p>
           <div className="grid sm:grid-cols-2 gap-3 text-sm">
             <div className="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-3">

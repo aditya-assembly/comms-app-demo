@@ -1,35 +1,25 @@
 import type { ProductFlowSession, ProductFlowSessionStatus, Participant } from '@/types/api'
-import type { ProductFlow, ProductFlowSession as OrchSession, ConversationSession } from '@/types/orchestration-dashboard-types'
+import type { ProductFlowSession as OrchSession, ConversationSession } from '@/types/orchestration-dashboard-types'
+import {
+  AGILEONE_SUPPLIER_TEMPLATES,
+  DEMO_ASSEMBLY_ID,
+  DEMO_PRODUCT_FLOW_ID,
+  DEMO_WORKFLOW_ID,
+} from './supplier-template-flows'
 
-export const DEMO_ASSEMBLY_ID = 'asm-demo-agileone-msp'
-export const DEMO_WORKFLOW_ID = 'wf-agileone-supplier-onboarding'
-export const DEMO_PRODUCT_FLOW_ID = 'pf-supplier-onboarding-domestic'
+export {
+  AGILEONE_SUPPLIER_TEMPLATES,
+  DEMO_ASSEMBLY_ID,
+  DEMO_PRODUCT_FLOW_ID,
+  DEMO_WORKFLOW_ID,
+  findSupplierTemplateById,
+} from './supplier-template-flows'
+export const SUPPLIER_ONBOARDING_FLOW = AGILEONE_SUPPLIER_TEMPLATES[0]
+
 export const DEMO_TEAM_MEMBER_ID = 'tm-demo-spe'
 
 const now = Date.now()
 const day = 86_400_000
-
-export const SUPPLIER_ONBOARDING_FLOW: ProductFlow = {
-  id: DEMO_PRODUCT_FLOW_ID,
-  name: 'Supplier / Contractor Onboarding — Domestic',
-  description:
-    'AgileOne MSP program: COI, W-9, MSA, banking, capability profile, and conditional addenda with validation and reminders.',
-  assemblyId: DEMO_ASSEMBLY_ID,
-  workflowId: DEMO_WORKFLOW_ID,
-  createdAt: now - 14 * day,
-  flowSteps: [
-    { type: 'INFORMATION', name: 'Program overview & checklist', description: 'What suppliers will complete', content: '' },
-    { type: 'EMAIL_OUTREACH_CREATOR', name: 'Opening invite & resumable link', description: 'Email + web conversational UI' },
-    {
-      type: 'CONVERSATION_CREATOR_FROM_TEMPLATE',
-      name: 'Guided document collection',
-      description: 'COI, W-9, MSA, ACH, profile',
-      templateConversationId: 'ctpl-supplier-onboarding',
-    },
-    { type: 'ACTION', name: 'Validation & routing', description: 'Auto-validation; exceptions path', workflowTriggerId: 'trg-validation' },
-    { type: 'INFORMATION', name: 'SPE review gate', description: 'Approve / needs info / reject' },
-  ],
-}
 
 function makeOrchSession(
   id: string,

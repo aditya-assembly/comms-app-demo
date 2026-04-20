@@ -3,11 +3,12 @@
  */
 import { LiveCommsAPI } from './comms-api-live'
 import {
+  AGILEONE_SUPPLIER_TEMPLATES,
   DEMO_ASSEMBLY_ID,
   DEMO_PRODUCT_FLOW_ID,
   DEMO_TEAM_MEMBER_ID,
   DEMO_WORKFLOW_ID,
-  SUPPLIER_ONBOARDING_FLOW,
+  findSupplierTemplateById,
   demoApiSessions,
   demoConversationSessions,
   demoOrchestrationSessions,
@@ -228,12 +229,11 @@ export class MockCommsAPI {
 
   async getProductFlowsByAssembly(assemblyId: string): Promise<ProductFlow[]> {
     if (assemblyId !== DEMO_ASSEMBLY_ID) return []
-    return [SUPPLIER_ONBOARDING_FLOW]
+    return [...AGILEONE_SUPPLIER_TEMPLATES]
   }
 
   async getProductFlowById(_assemblyId: string, _workflowId: string, productFlowId: string): Promise<ProductFlow> {
-    if (productFlowId === DEMO_PRODUCT_FLOW_ID) return SUPPLIER_ONBOARDING_FLOW
-    return SUPPLIER_ONBOARDING_FLOW
+    return findSupplierTemplateById(productFlowId) ?? AGILEONE_SUPPLIER_TEMPLATES[0]
   }
 
   async createProductFlowSession(request: CreateSessionRequest): Promise<CreateSessionResponse> {
