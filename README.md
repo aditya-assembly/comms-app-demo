@@ -21,7 +21,8 @@ Output: `dist/`. Use `npm run build:strict` if you want TypeScript checking befo
 
 ## Deploy
 
-- **Netlify:** connect this repo with build command `npm run build`, publish directory `dist`, or use the included `netlify.toml`.
+- **GitHub:** [github.com/aditya-assembly/comms-app-demo](https://github.com/aditya-assembly/comms-app-demo)
+- **Netlify (production):** [comms-app-demo.netlify.app](https://comms-app-demo.netlify.app) — build `npm run build`, publish `dist`, Node 20 (see `netlify.toml`). Continuous deploy: connect the GitHub repo in the Netlify UI and use the same settings.
 
 ## Notes
 
