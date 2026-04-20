@@ -15,8 +15,16 @@ import {
   demoParticipants,
   getDispatcherMessages,
   pushDispatcherMessages,
+  syncApiSessionFromOrch,
   upsertSession,
 } from '@/demo/mock-store'
+import { getDemoConversationTemplate } from '@/demo/demo-conversation-templates'
+import { getDemoTriggersForWorkflow } from '@/demo/demo-workflow-triggers'
+import {
+  buildMockStepResponse,
+  getProductFlowForSession,
+  reconcileProductFlowStepSessions,
+} from '@/demo/flow-orchestration-mock'
 import type {
   BatchParticipantResult,
   CommsAppInfo,
@@ -38,13 +46,18 @@ import type {
   SSOResponse,
   TaskMessage,
   TaskMessagePageResponse,
+  TriggerInputValue,
 } from '@/types/api'
 import type {
+  BootstrapRequest,
+  CompleteStepResponse,
+  Conversation,
   ConversationSession,
   CreateSessionRequest,
   CreateSessionResponse,
   DataView,
   DataViewQuery,
+  EmailOutreach,
   Entity,
   EntityDocQueryBuilder,
   EntitySpec,
@@ -56,12 +69,14 @@ import type {
   ProductFlowSessionEvent,
   ProductFlowSessionEventSearchRequest,
   ProductFlowSessionMessage,
+  RunAutomationRequest,
   SessionSearchParams,
   SessionSearchResponse,
   SSEEvent,
   ProductFlowSession as OrchProductFlowSession,
-  InformationFlowStep,
   StepResponse,
+  TriggerExecutionResponse,
+  WorkflowTriggerItem,
 } from '@/types/orchestration-dashboard-types'
 import type { ProductFlowSessionTaskStatsResponse as ApiTaskStats } from '@/types/api'
 
@@ -91,51 +106,85 @@ function filterSessions(req: ProductFlowSessionSearchRequest): ProductFlowSessio
   return list
 }
 
-function buildInformationStep(): InformationFlowStep {
-  return {
-    type: 'INFORMATION',
-    name: 'AgileOne supplier onboarding (preview)',
-    description: 'Guided session: documents validate before SPE review.',
-    content:
-      '## What suppliers complete\n\n' +
-      '- **COI** — auto-validation (limits, named insured, expiry)\n' +
-      '- **W-9** — OCR for EIN / legal name vs profile\n' +
-      '- **MSA** — DocuSign track / collect\n' +
-      '- **ACH / banking**\n' +
-      '- **Capability profile** + **conditional addenda** by program\n\n' +
-      '## Reminders\n\nDay **3** and **7**; escalate to owning SPE after the **2nd** no-response.',
+const demoConversationsById = new Map<string, Conversation>()
+const demoEmailOutreachByStepKey = new Map<string, EmailOutreach>()
+
+function sessionStepKey(sessionId: string, stepIndex: number): string {
+  return `${sessionId}:${stepIndex}`
+}
+
+function getOrEnsureOrch(sessionId: string): OrchProductFlowSession {
+  let orch = demoOrchestrationSessions.get(sessionId)
+  if (orch) {
+    reconcileProductFlowStepSessions(orch)
+    return orch
   }
+  const row = demoApiSessions.find((s) => s.id === sessionId)
+  if (!row) throw new Error('Session not found (demo)')
+  const o: OrchProductFlowSession = {
+    id: row.id,
+    productFlowId: row.productFlowId ?? DEMO_PRODUCT_FLOW_ID,
+    name: row.name,
+    userQuery: row.userQuery ?? null,
+    teamMemberId: row.teamMemberId ?? DEMO_TEAM_MEMBER_ID,
+    assemblyId: row.assemblyId ?? DEMO_ASSEMBLY_ID,
+    workflowId: row.workflowId ?? DEMO_WORKFLOW_ID,
+    currentStepIndex: row.currentStepIndex ?? 0,
+    status: row.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE',
+    createdAt: row.createdAt ?? Date.now(),
+    updatedAt: row.updatedAt ?? Date.now(),
+    stepSessions: [],
+    messages: [],
+    metadata: row.metadata as Record<string, string> | undefined,
+  }
+  reconcileProductFlowStepSessions(o)
+  demoOrchestrationSessions.set(sessionId, o)
+  syncApiSessionFromOrch(o)
+  return o
 }
 
 function buildStepResponse(sessionId: string): StepResponse {
-  const orch = demoOrchestrationSessions.get(sessionId)
-  const stepIndex = orch?.currentStepIndex ?? 0
-  const step = buildInformationStep()
-  const stepSession = orch?.stepSessions?.find((s) => s.stepIndex === stepIndex)
-  const totalSteps = 5
-  return {
-    stepIndex,
-    step,
-    stepSession,
-    progress: {
-      current: stepIndex + 1,
-      total: totalSteps,
-      percentage: Math.round(((stepIndex + 1) / totalSteps) * 100),
-    },
-    transition: {
-      willAutoAdvance: false,
-      requiresManualAdvance: true,
-      hasNextStep: stepIndex < totalSteps - 1,
-    },
-    canStart: false,
-    canComplete: true,
-    canMoveToNext: stepIndex < totalSteps - 1,
-    sessionStatus: orch?.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE',
-  }
+  return buildMockStepResponse(getOrEnsureOrch(sessionId))
 }
 
 function demoAssistantReply(userText: string): string {
   const t = userText.toLowerCase()
+  const first = AGILEONE_SUPPLIER_TEMPLATES[0]
+  if (
+    t.includes('template') ||
+    t.includes('recommend') ||
+    t.includes('which flow') ||
+    t.includes('what should i run') ||
+    t.includes('start onboarding') ||
+    t.includes('pick a flow')
+  ) {
+    return (
+      `**Default pick (first template):** **${first.name}** — ${first.description}\n\n` +
+      `Open **Templates** to start any catalog flow. Mention **healthcare**, **recert**, **1099**, **multi-state**, **legal**, **venda**, or **sharepoint** and I’ll point at the closest match.`
+    )
+  }
+  const keywordHints: { k: string; id: string }[] = [
+    { k: 'healthcare', id: 'pf-supplier-onboarding-healthcare' },
+    { k: 'recert', id: 'pf-supplier-recertification' },
+    { k: '1099', id: 'pf-1099-sole-prop-onboarding' },
+    { k: 'multi-state', id: 'pf-supplier-multistate' },
+    { k: 'multi state', id: 'pf-supplier-multistate' },
+    { k: 'legal', id: 'pf-msa-sow-legal-package' },
+    { k: 'msa', id: 'pf-msa-sow-legal-package' },
+    { k: 'venda', id: 'pf-post-approval-venda-handoff' },
+    { k: 'sharepoint', id: 'pf-post-approval-venda-handoff' },
+    { k: 'staffing', id: 'pf-supplier-onboarding-domestic' },
+    { k: 'general', id: 'pf-supplier-onboarding-domestic' },
+    { k: 'domestic', id: 'pf-supplier-onboarding-domestic' },
+  ]
+  for (const { k, id } of keywordHints) {
+    if (t.includes(k)) {
+      const flow = findSupplierTemplateById(id)
+      if (flow) {
+        return `**Template match:** **${flow.name}**\n\n${flow.description}\n\nUse **Templates** to launch it (first template in the list is **${first.name}** if you want the default domestic path).`
+      }
+    }
+  }
   if (t.includes('coi') && (t.includes('30') || t.includes('expir'))) {
     return '**Recertification queue (demo):** 4 suppliers have a COI expiring within 30 days — Novus, Harbor Ridge, Summit, and Apex. I can add them to a renewal dispatch batch when you are ready.'
   }
@@ -165,7 +214,7 @@ function demoAssistantReply(userText: string): string {
   }
   return (
     'In the full product, I would orchestrate invites, validate documents, and route exceptions. ' +
-    'Here in **demo mode**, open **Program dashboard** for pipeline & TAT, or **Sessions** to inspect each supplier run.'
+    'Here in **demo mode**, use **Templates** or **Sessions** to walk supplier onboarding flows with scripted data.'
   )
 }
 
@@ -237,16 +286,17 @@ export class MockCommsAPI {
   }
 
   async createProductFlowSession(request: CreateSessionRequest): Promise<CreateSessionResponse> {
+    const tpl = findSupplierTemplateById(request.productFlowId) ?? AGILEONE_SUPPLIER_TEMPLATES[0]
     const id = `pfs-demo-${Date.now()}`
     const created = Date.now()
     const orch: OrchProductFlowSession = {
       id,
-      productFlowId: request.productFlowId,
-      name: request.note ?? 'New supplier onboarding session',
+      productFlowId: tpl.id!,
+      name: request.note?.trim() || tpl.name || 'New supplier onboarding session',
       userQuery: request.userQuery ?? null,
       teamMemberId: DEMO_TEAM_MEMBER_ID,
       assemblyId: request.assemblyId,
-      workflowId: request.workflowId ?? DEMO_WORKFLOW_ID,
+      workflowId: request.workflowId ?? tpl.workflowId,
       currentStepIndex: 0,
       status: 'ACTIVE',
       createdAt: created,
@@ -254,23 +304,11 @@ export class MockCommsAPI {
       stepSessions: [],
       messages: [],
     }
+    reconcileProductFlowStepSessions(orch)
     demoOrchestrationSessions.set(id, orch)
-    const apiS: ProductFlowSession = {
-      id,
-      name: orch.name,
-      userQuery: request.userQuery ?? undefined,
-      productFlowId: request.productFlowId,
-      teamMemberId: DEMO_TEAM_MEMBER_ID,
-      assemblyId: request.assemblyId,
-      workflowId: orch.workflowId,
-      status: 'ACTIVE',
-      currentStepIndex: 0,
-      createdAt: created,
-      updatedAt: created,
-    }
-    upsertSession(apiS)
+    syncApiSessionFromOrch(orch)
     return {
-      session: apiS as unknown as OrchProductFlowSession,
+      session: getOrEnsureOrch(id) as unknown as OrchProductFlowSession,
       currentStep: buildStepResponse(id),
     }
   }
@@ -290,11 +328,7 @@ export class MockCommsAPI {
   }
 
   async getProductFlowSession(sessionId: string): Promise<ProductFlowSession> {
-    const orch = demoOrchestrationSessions.get(sessionId)
-    if (orch) return orch as unknown as ProductFlowSession
-    const row = demoApiSessions.find((s) => s.id === sessionId)
-    if (row) return row
-    throw new Error('Session not found (demo)')
+    return getOrEnsureOrch(sessionId) as unknown as ProductFlowSession
   }
 
   async getProductFlowSessionCurrentStep(sessionId: string): Promise<unknown> {
@@ -309,37 +343,155 @@ export class MockCommsAPI {
     return {}
   }
 
-  async nextStep(sessionId: string): Promise<unknown> {
-    const orch = demoOrchestrationSessions.get(sessionId)
-    if (orch && orch.currentStepIndex < 4) {
-      orch.currentStepIndex += 1
+  async nextStep(sessionId: string, body?: unknown): Promise<CompleteStepResponse> {
+    const orch = getOrEnsureOrch(sessionId)
+    const flow = getProductFlowForSession(orch.productFlowId)
+    const n = flow.flowSteps.length
+    const idx = orch.currentStepIndex
+    const outputData = (body as { outputData?: Record<string, unknown> } | undefined)?.outputData
+    const curSs = orch.stepSessions?.find((s) => s.stepIndex === idx)
+    if (curSs) {
+      curSs.status = 'COMPLETED'
+      curSs.outputData = { ...curSs.outputData, ...outputData }
+      curSs.updatedAt = Date.now()
+    }
+    if (idx < n - 1) {
+      orch.currentStepIndex = idx + 1
+    } else {
+      orch.status = 'COMPLETED'
+    }
+    orch.updatedAt = Date.now()
+    reconcileProductFlowStepSessions(orch)
+    syncApiSessionFromOrch(orch)
+    const completedStep = orch.stepSessions!.find((s) => s.stepIndex === idx)!
+    return {
+      completedStep,
+      currentStep: buildMockStepResponse(orch),
+      transition: {
+        type: 'AUTO',
+        fromStepIndex: idx,
+        toStepIndex: Math.min(idx + 1, Math.max(0, n - 1)),
+        timestamp: Date.now(),
+      },
+    }
+  }
+
+  async startStep(sessionId: string, stepIndex: number, _body?: unknown): Promise<unknown> {
+    const orch = getOrEnsureOrch(sessionId)
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss && ss.status === 'PENDING') {
+      ss.status = 'IN_PROGRESS'
+      ss.startedAt = Date.now()
       orch.updatedAt = Date.now()
+      reconcileProductFlowStepSessions(orch)
+      syncApiSessionFromOrch(orch)
     }
     return { currentStep: buildStepResponse(sessionId) }
   }
 
-  async startStep(): Promise<unknown> {
-    return {}
+  async completeStep(sessionId: string, stepIndex: number, body?: unknown): Promise<unknown> {
+    const outputData = (body as { outputData?: Record<string, unknown> } | undefined)?.outputData
+    void stepIndex
+    return this.nextStep(sessionId, { outputData })
   }
 
-  async completeStep(): Promise<unknown> {
-    return {}
-  }
-
-  async runAutomation(): Promise<unknown> {
-    return {}
+  async runAutomation(
+    sessionId: string,
+    stepIndex: number,
+    _request?: RunAutomationRequest,
+  ): Promise<CompleteStepResponse> {
+    const orch = getOrEnsureOrch(sessionId)
+    const flow = getProductFlowForSession(orch.productFlowId)
+    const stepDef = flow.flowSteps[stepIndex]
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss) {
+      ss.status = 'COMPLETED'
+      ss.outputData = {
+        ...ss.outputData,
+        ticketId: `demo-ticket-${Date.now()}`,
+        ticketName: stepDef?.name ?? 'Automation',
+        workflowId: orch.workflowId ?? '',
+      }
+      ss.updatedAt = Date.now()
+    }
+    const n = flow.flowSteps.length
+    if (stepIndex < n - 1) {
+      orch.currentStepIndex = stepIndex + 1
+    } else {
+      orch.status = 'COMPLETED'
+    }
+    orch.updatedAt = Date.now()
+    reconcileProductFlowStepSessions(orch)
+    syncApiSessionFromOrch(orch)
+    const completedStep = orch.stepSessions!.find((s) => s.stepIndex === stepIndex)!
+    return {
+      completedStep,
+      currentStep: buildMockStepResponse(orch),
+      transition: {
+        type: 'AUTO',
+        fromStepIndex: stepIndex,
+        toStepIndex: Math.min(stepIndex + 1, Math.max(0, n - 1)),
+        timestamp: Date.now(),
+      },
+    }
   }
 
   async acknowledgeStep(sessionId: string, stepIndex: number): Promise<ProductFlowSession> {
+    const orch = getOrEnsureOrch(sessionId)
+    const flow = getProductFlowForSession(orch.productFlowId)
+    const last = flow.flowSteps.length - 1
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss) {
+      ss.status = 'COMPLETED'
+      ss.updatedAt = Date.now()
+    }
+    if (stepIndex >= last) {
+      orch.status = 'COMPLETED'
+    } else {
+      orch.currentStepIndex = stepIndex + 1
+    }
+    orch.updatedAt = Date.now()
+    reconcileProductFlowStepSessions(orch)
+    syncApiSessionFromOrch(orch)
+    return getOrEnsureOrch(sessionId) as unknown as ProductFlowSession
+  }
+
+  async retryStep(sessionId: string, _stepIndex: number): Promise<ProductFlowSession> {
     return this.getProductFlowSession(sessionId)
   }
 
-  async retryStep(sessionId: string): Promise<ProductFlowSession> {
-    return this.getProductFlowSession(sessionId)
-  }
-
-  async bootstrapStep(): Promise<unknown> {
-    return {}
+  async bootstrapStep(sessionId: string, stepIndex: number, request?: BootstrapRequest): Promise<unknown> {
+    const orch = getOrEnsureOrch(sessionId)
+    const flow = getProductFlowForSession(orch.productFlowId)
+    const step = flow.flowSteps[stepIndex]
+    if (step?.type !== 'EMAIL_OUTREACH_CREATOR') {
+      return {}
+    }
+    const key = sessionStepKey(sessionId, stepIndex)
+    const instructions = request?.instructions?.trim()
+    const id = `eo-demo-${sessionId}-${stepIndex}`
+    const outreach: EmailOutreach = {
+      id,
+      name: 'AgileOne supplier invite (demo)',
+      to: [{ email: 'supplier.contact@example.com', name: 'Supplier contact' }],
+      initialOutreach: {
+        title: 'Complete your AgileOne onboarding',
+        body:
+          (instructions ? `Notes: ${instructions}\n\n` : '') +
+          'This is a **demo** draft. Adjust recipients, body, and send window before sending.',
+      },
+      status: 'DRAFT',
+    }
+    demoEmailOutreachByStepKey.set(key, outreach)
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss) {
+      ss.emailOutreachId = id
+      ss.outputData = { ...ss.outputData, emailOutreachId: id, emailOutreach: outreach }
+      ss.updatedAt = Date.now()
+    }
+    orch.updatedAt = Date.now()
+    syncApiSessionFromOrch(orch)
+    return outreach
   }
 
   async getStepUpdates(): Promise<unknown> {
@@ -498,7 +650,9 @@ export class MockCommsAPI {
     return {}
   }
 
-  async getSessionMessages(sessionId: string): Promise<unknown> {
+  async getSessionMessages(sessionId: string, _stepIndex?: number, _limit?: number): Promise<unknown> {
+    void _stepIndex
+    void _limit
     const now = Date.now()
     const list: ProductFlowSessionMessage[] = [
       {
@@ -522,12 +676,39 @@ export class MockCommsAPI {
     return list
   }
 
-  async getConsolePublishedTriggers(): Promise<import('@/types/orchestration-dashboard-types').WorkflowTriggerItem[]> {
-    return []
+  async getConsolePublishedTriggers(assemblyId: string, workflowId: string): Promise<WorkflowTriggerItem[]> {
+    void assemblyId
+    return getDemoTriggersForWorkflow(workflowId)
   }
 
-  async kickoffConsoleTrigger(): Promise<import('@/types/orchestration-dashboard-types').TriggerExecutionResponse> {
-    return {} as import('@/types/orchestration-dashboard-types').TriggerExecutionResponse
+  async kickoffConsoleTrigger(
+    _assemblyId: string,
+    workflowId: string,
+    triggerId: string,
+    _inputs: Record<string, TriggerInputValue>,
+    _forTesting = false,
+  ): Promise<TriggerExecutionResponse> {
+    void _inputs
+    void _forTesting
+    const t = Date.now()
+    const name =
+      getDemoTriggersForWorkflow(workflowId).find((x) => x.id === triggerId)?.name ?? 'Demo action'
+    return {
+      id: `ticket-${t}`,
+      workflowId,
+      workflowName: 'Supplier onboarding (demo)',
+      workflowVersion: '1',
+      processName: 'Console trigger',
+      triggerId,
+      workflowState: { name: 'RUNNING', description: '', status: 'ACTIVE' },
+      externalExecutionId: `ext-${t}`,
+      name,
+      description: 'Demo execution',
+      createdBy: DEMO_TEAM_MEMBER_ID,
+      createdAt: t,
+      state: 'OPEN',
+      updates: [],
+    } as unknown as TriggerExecutionResponse
   }
 
   async getMediaForTrigger(): Promise<string> {
@@ -661,32 +842,93 @@ export class MockCommsAPI {
     return demoParticipants.filter((p) => ids.includes(p.id))
   }
 
-  async getConversationAsTemplate(): Promise<unknown> {
-    return {}
+  async getConversationAsTemplate(templateConversationId: string): Promise<unknown> {
+    return getDemoConversationTemplate(templateConversationId)
   }
 
   async getConversationTemplateConversations(): Promise<unknown> {
     return { items: [], totalCount: 0 }
   }
 
-  async createConversationInStep(): Promise<unknown> {
-    return {}
+  async createConversationInStep(sessionId: string, stepIndex: number, request: unknown): Promise<unknown> {
+    const payload = request as {
+      sourceConversationId?: string
+      name?: string
+      assemblyLineID?: string
+    }
+    const orch = getOrEnsureOrch(sessionId)
+    const id = `conv-demo-${sessionId}-${stepIndex}`
+    const base = getDemoConversationTemplate(payload.sourceConversationId ?? 'ctpl-supplier-onboarding')
+    const conv: Conversation = {
+      ...base,
+      id,
+      name: payload.name?.trim() || base.name,
+      assemblyLineID: payload.assemblyLineID ?? DEMO_ASSEMBLY_ID,
+    }
+    demoConversationsById.set(id, conv)
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss) {
+      ss.conversationConfigId = id
+      ss.outputData = { ...ss.outputData, conversationConfigId: id }
+      ss.updatedAt = Date.now()
+    }
+    orch.updatedAt = Date.now()
+    syncApiSessionFromOrch(orch)
+    return conv
   }
 
-  async updateConversationInStep(): Promise<unknown> {
-    return {}
+  async updateConversationInStep(sessionId: string, stepIndex: number, request: unknown): Promise<unknown> {
+    const payload = request as { conversationId?: string; name?: string }
+    const id = payload.conversationId
+    if (!id) return {}
+    const prev = demoConversationsById.get(id)
+    const next: Conversation = {
+      ...(prev ?? getDemoConversationTemplate('ctpl-supplier-onboarding')),
+      ...payload,
+      id,
+      assemblyLineID: prev?.assemblyLineID ?? DEMO_ASSEMBLY_ID,
+    }
+    demoConversationsById.set(id, next)
+    const orch = getOrEnsureOrch(sessionId)
+    void stepIndex
+    orch.updatedAt = Date.now()
+    syncApiSessionFromOrch(orch)
+    return next
   }
 
-  async getEmailOutreachInStep(): Promise<unknown> {
-    return {}
+  async getEmailOutreachInStep(sessionId: string, stepIndex: number): Promise<unknown> {
+    const key = sessionStepKey(sessionId, stepIndex)
+    const cached = demoEmailOutreachByStepKey.get(key)
+    if (cached) return cached
+    const orch = getOrEnsureOrch(sessionId)
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    return (ss?.outputData?.emailOutreach as EmailOutreach | undefined) ?? null
   }
 
-  async updateEmailOutreachInStep(): Promise<unknown> {
-    return {}
+  async updateEmailOutreachInStep(sessionId: string, stepIndex: number, request: unknown): Promise<unknown> {
+    const payload = request as { emailOutreach?: Partial<EmailOutreach>; emailOutreachId?: string }
+    const key = sessionStepKey(sessionId, stepIndex)
+    const prev =
+      demoEmailOutreachByStepKey.get(key) ??
+      ({ id: payload.emailOutreachId } as EmailOutreach)
+    const merged: EmailOutreach = { ...prev, ...payload.emailOutreach, id: prev.id ?? payload.emailOutreachId }
+    demoEmailOutreachByStepKey.set(key, merged)
+    const orch = getOrEnsureOrch(sessionId)
+    const ss = orch.stepSessions?.find((s) => s.stepIndex === stepIndex)
+    if (ss) {
+      ss.emailOutreachId = merged.id ?? ss.emailOutreachId
+      ss.outputData = { ...ss.outputData, emailOutreachId: merged.id, emailOutreach: merged }
+      ss.updatedAt = Date.now()
+      orch.updatedAt = Date.now()
+    }
+    syncApiSessionFromOrch(orch)
+    return merged
   }
 
-  async sendEmailOutreachInStep(): Promise<unknown> {
-    return {}
+  async sendEmailOutreachInStep(sessionId: string, stepIndex: number, _request?: unknown): Promise<unknown> {
+    void sessionId
+    void stepIndex
+    return { sent: true, message: 'Demo mode — email not sent.', recipientCount: 1 }
   }
 
   async addFollowUpInStep(): Promise<unknown> {

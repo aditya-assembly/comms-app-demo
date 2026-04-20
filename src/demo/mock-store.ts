@@ -1,5 +1,6 @@
 import type { ProductFlowSession, ProductFlowSessionStatus, Participant } from '@/types/api'
 import type { ProductFlowSession as OrchSession, ConversationSession } from '@/types/orchestration-dashboard-types'
+import { reconcileProductFlowStepSessions } from '@/demo/flow-orchestration-mock'
 import {
   AGILEONE_SUPPLIER_TEMPLATES,
   DEMO_ASSEMBLY_ID,
@@ -30,7 +31,22 @@ function makeOrchSession(
 ): OrchSession {
   const created = now - Math.floor(3 + Math.random() * 17) * day
   const completed = listStatus === 'COMPLETED'
-  return {
+  /** Demo positions on the first template’s 5-step flow (see supplier-template-flows). */
+  let currentStepIndex = 0
+  if (completed) {
+    currentStepIndex = 0
+  } else if (id === 'pfs-novus-001') {
+    currentStepIndex = 2
+  } else if (id === 'pfs-harbor-002') {
+    currentStepIndex = 0
+  } else if (id === 'pfs-summit-003') {
+    currentStepIndex = 3
+  } else if (id === 'pfs-apex-005') {
+    currentStepIndex = 2
+  } else {
+    currentStepIndex = 1
+  }
+  const orch: OrchSession = {
     id,
     productFlowId: DEMO_PRODUCT_FLOW_ID,
     name,
@@ -38,45 +54,11 @@ function makeOrchSession(
     teamMemberId: DEMO_TEAM_MEMBER_ID,
     assemblyId: DEMO_ASSEMBLY_ID,
     workflowId: DEMO_WORKFLOW_ID,
-    currentStepIndex: completed ? 4 : listStatus === 'ACTIVE' ? 0 : 2,
+    currentStepIndex,
     status: completed ? 'COMPLETED' : 'ACTIVE',
     createdAt: created,
     updatedAt: created + day,
-    stepSessions: [
-      {
-        id: `${id}-s0`,
-        productFlowSessionId: id,
-        stepIndex: 0,
-        stepType: 'INFORMATION',
-        status: 'COMPLETED',
-        updates: [
-          {
-            id: `${id}-u1`,
-            productFlowStepSessionId: `${id}-s0`,
-            type: 'INFO',
-            title: 'Session plan generated',
-            message:
-              'Opening email, agenda, document requirements, validation rules, and reminder schedule (Day 3 / Day 7) are configured.',
-            sourceSystem: 'demo',
-            createdAt: created + 60_000,
-          },
-        ],
-        retryCount: 0,
-        createdAt: created,
-        updatedAt: created + 60_000,
-      },
-      {
-        id: `${id}-s1`,
-        productFlowSessionId: id,
-        stepIndex: 1,
-        stepType: 'EMAIL_OUTREACH_CREATOR',
-        status: listStatus === 'ACTIVE' ? 'IN_PROGRESS' : 'COMPLETED',
-        updates: [],
-        retryCount: 0,
-        createdAt: created + 120_000,
-        updatedAt: created + 180_000,
-      },
-    ],
+    stepSessions: [],
     messages: [],
     metadata: {
       demoStage: stageLabel,
@@ -84,6 +66,23 @@ function makeOrchSession(
       supplierOnboardingId: `soi-${id.replace(/^pfs-/, '')}`,
     },
   }
+  reconcileProductFlowStepSessions(orch)
+  const first = orch.stepSessions?.[0]
+  if (first && id === 'pfs-novus-001') {
+    first.updates = [
+      {
+        id: `${id}-u1`,
+        productFlowStepSessionId: first.id,
+        type: 'INFO',
+        title: 'Session plan generated',
+        message:
+          'Opening email, agenda, document requirements, validation rules, and reminder schedule (Day 3 / Day 7) are configured.',
+        sourceSystem: 'demo',
+        createdAt: created + 60_000,
+      },
+    ]
+  }
+  return orch
 }
 
 function apiSessionFromOrch(o: OrchSession, listStatus: ProductFlowSessionStatus): ProductFlowSession {
@@ -197,7 +196,7 @@ let dispatcherMessages: import('@/types/api').DispatcherAgentMessage[] = [
   {
     role: 'ASSISTANT',
     content:
-      'Welcome to the **AgileOne Supplier Onboarding** demo workspace. I can help you draft invites, review pipeline health, or explain exception handling for COIs and MSAs.\n\nTry: *"Which suppliers have a COI expiring in 30 days?"* or open **Program dashboard** in the sidebar.',
+      'Welcome to the **AgileOne Supplier Onboarding** demo workspace. I can help you draft invites, review pipeline health, or explain exception handling for COIs and MSAs.\n\nTry: *"Which suppliers have a COI expiring in 30 days?"* or open **Templates** / **Sessions** in the sidebar.',
     createdAt: now - 3600_000,
   },
 ]
@@ -214,4 +213,13 @@ export function upsertSession(s: ProductFlowSession) {
   const idx = demoApiSessions.findIndex((x) => x.id === s.id)
   if (idx >= 0) demoApiSessions[idx] = s
   else demoApiSessions = [s, ...demoApiSessions]
+}
+
+/** Keeps list/search rows in sync after orchestration mutations (demo API). */
+export function syncApiSessionFromOrch(orch: OrchSession) {
+  reconcileProductFlowStepSessions(orch)
+  const idx = demoApiSessions.findIndex((s) => s.id === orch.id)
+  const listStatus: ProductFlowSessionStatus =
+    idx >= 0 ? demoApiSessions[idx]!.status : orch.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE'
+  upsertSession(apiSessionFromOrch(orch, listStatus))
 }

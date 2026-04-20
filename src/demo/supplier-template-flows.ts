@@ -37,7 +37,17 @@ export const AGILEONE_SUPPLIER_TEMPLATES: ProductFlow[] = [
     workflowId: 'wf-agileone-general-staffing',
     createdAt: now - 14 * day,
     flowSteps: [
-      information('Program overview & checklist', 'What the supplier will complete in this program'),
+      information(
+        'Program overview & checklist',
+        'What the supplier will complete in this program',
+        '## In this program\n\n' +
+          '- **COI** with correct limits and named insured\n' +
+          '- **W-9** and banking (ACH)\n' +
+          '- **MSA** execution where required\n' +
+          '- **Capability profile** and any **conditional addenda**\n\n' +
+          '## Reminders\n\n' +
+          'Automated nudges on **day 3** and **day 7**; escalate to the owning SPE after the **second** no-response.',
+      ),
       emailOutreach('Invite & resumable link', 'Email + web conversational UI'),
       fromTemplate('Guided document collection', 'COI, W-9, MSA, ACH, profile', 'ctpl-supplier-onboarding'),
       action('Auto-validation & exceptions', 'Coverage checks, OCR match, routing', 'trg-validation'),

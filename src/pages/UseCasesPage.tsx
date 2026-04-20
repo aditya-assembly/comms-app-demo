@@ -72,7 +72,7 @@ export default function UseCasesPage() {
               <button
                 type="button"
                 disabled={!uc.ready}
-                onClick={() => uc.ready && navigate('/app/dashboard')}
+                onClick={() => uc.ready && navigate('/app/agent')}
                 className={cn(
                   'w-full text-left rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm transition-all',
                   uc.ready

@@ -25,7 +25,8 @@ export default function App() {
         <Route path="/welcome" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/sso-callback" element={<SSOCallbackPage />} />
-        <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
+        <Route path="/app" element={<Navigate to="/app/agent" replace />} />
+        <Route path="/app/dashboard" element={<Navigate to="/app/agent" replace />} />
         <Route
           path="/app/*"
           element={

@@ -9,7 +9,7 @@ import {
 import {
   Loader2, Settings, LogOut, Search, SlidersHorizontal, ChevronLeft,
   ChevronRight, Eye, Building2, Mail, Fingerprint, CalendarClock,
-  Tag, Pencil, LayoutDashboard,
+  Tag, Pencil,
 } from 'lucide-react'
 import { DispatcherChat } from './DispatcherChat'
 import { TemplatesView } from './templates-view'
@@ -18,7 +18,6 @@ import { SessionDetail } from './SessionDetail'
 import { ConversationsSessionsPanel } from '@/components/conversations/conversations-sessions-panel'
 import { ConversationSessionDetailView } from '@/components/conversations/conversation-session-detail'
 import { WorkspaceSettings } from './WorkspaceSettings'
-import { SupplierProgramDashboard } from './SupplierProgramDashboard'
 import { LogoVoiceWaveIcon } from '@/components/Logo'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useAuthStore } from '@/stores/auth-store'
@@ -1033,7 +1032,7 @@ function PeopleView() {
    Main App Shell — nav (Agent / Templates / Sessions / People)
    ──────────────────────────────────────────────── */
 
-type ViewId = 'dashboard' | 'agent' | 'templates' | 'sessions' | 'conversations' | 'people' | 'integrations'
+type ViewId = 'agent' | 'templates' | 'sessions' | 'conversations' | 'people' | 'integrations'
 
 const LEGACY_APP_SEGMENTS = new Set(['dispatcher', 'sync', 'async'])
 
@@ -1048,7 +1047,6 @@ type ParsedAppPath = {
  * Maps /app/... to main view and optional ids for full-screen overlays.
  *
  * <ul>
- *   <li>/app/dashboard — program dashboard (demo)</li>
  *   <li>/app/sessions — list</li>
  *   <li>/app/sessions/&lt;productFlowSessionId&gt; — product-flow session detail</li>
  *   <li>/app/sessions/&lt;productFlowSessionId&gt;?conversation=&lt;id&gt; — conversation on top of session detail</li>
@@ -1059,10 +1057,10 @@ type ParsedAppPath = {
 function parseAppPath(pathname: string, search = ''): ParsedAppPath {
   const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean)
   if (parts.length === 0 || parts[0] !== 'app') {
-    return { view: 'dashboard', productFlowSessionId: null, conversationSessionId: null }
+    return { view: 'agent', productFlowSessionId: null, conversationSessionId: null }
   }
-  const seg = parts[1] ?? 'dashboard'
-  const allowed: ViewId[] = ['dashboard', 'agent', 'templates', 'sessions', 'conversations', 'people', 'integrations']
+  const seg = parts[1] ?? 'agent'
+  const allowed: ViewId[] = ['agent', 'templates', 'sessions', 'conversations', 'people', 'integrations']
   const view: ViewId = allowed.includes(seg as ViewId) ? (seg as ViewId) : 'agent'
 
   let productFlowSessionId: string | null = null
@@ -1161,7 +1159,6 @@ export function AppShell() {
     : '?'
 
   const NAV: { id: ViewId; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Program', icon: <LayoutDashboard className="w-[15px] h-[15px]" strokeWidth={view === 'dashboard' ? 2.5 : 2} /> },
     { id: 'agent', label: 'Agent', icon: <Sparkle size={15} weight={view === 'agent' ? 'fill' : 'regular'} /> },
     { id: 'templates', label: 'Templates', icon: <GitBranch size={15} weight={view === 'templates' ? 'fill' : 'regular'} /> },
     { id: 'sessions', label: 'Sessions', icon: <ListChecks size={15} weight={view === 'sessions' ? 'fill' : 'regular'} /> },
@@ -1171,7 +1168,6 @@ export function AppShell() {
   ]
 
   const HEADER: Record<ViewId, { title: string; sub: string }> = {
-    dashboard: { title: 'Program dashboard', sub: 'AgileOne supplier onboarding — pipeline & SPE queue' },
     agent: { title: 'Agent', sub: 'Create & dispatch structured comms' },
     templates: { title: 'Templates', sub: 'Product flow templates — preview and start a session' },
     sessions: { title: 'Sessions', sub: 'All active and completed comms sessions' },
@@ -1242,7 +1238,6 @@ export function AppShell() {
 
         {/* View — flex column so children (e.g. DispatcherChat) can use flex-1 and fill viewport height */}
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-          {view === 'dashboard' && <SupplierProgramDashboard />}
           {view === 'agent' && <DispatcherChat onOpenSession={handleOpenSession} />}
           {view === 'templates' && <TemplatesView onOpenSession={handleOpenSession} />}
           {view === 'sessions' && <SessionsView onOpenSession={handleOpenSession} />}
