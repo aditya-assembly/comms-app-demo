@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import {
   Sparkle, ListChecks, Users, MagnifyingGlass, GitBranch,
@@ -1048,6 +1048,7 @@ type ParsedAppPath = {
  * Maps /app/... to main view and optional ids for full-screen overlays.
  *
  * <ul>
+ *   <li>/app/dashboard — program dashboard (demo)</li>
  *   <li>/app/sessions — list</li>
  *   <li>/app/sessions/&lt;productFlowSessionId&gt; — product-flow session detail</li>
  *   <li>/app/sessions/&lt;productFlowSessionId&gt;?conversation=&lt;id&gt; — conversation on top of session detail</li>
@@ -1224,12 +1225,19 @@ export function AppShell() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
         <div className="h-12 shrink-0 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-gray-900">{HEADER[view].title}</span>
-            <span className="text-gray-300">/</span>
-            <span className="text-sm text-gray-500">{HEADER[view].sub}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-gray-900 truncate">{HEADER[view].title}</span>
+            <span className="text-gray-300 shrink-0">/</span>
+            <span className="text-sm text-gray-500 truncate hidden sm:inline">{HEADER[view].sub}</span>
           </div>
-          <div className="flex items-center gap-2" />
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/"
+              className="text-xs font-semibold text-brand-indigo hover:text-brand-mid transition-colors"
+            >
+              Use cases
+            </Link>
+          </div>
         </div>
 
         {/* View — flex column so children (e.g. DispatcherChat) can use flex-1 and fill viewport height */}

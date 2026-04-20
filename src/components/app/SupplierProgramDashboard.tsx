@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import {
   Bar,
   BarChart,
@@ -53,6 +54,11 @@ export function SupplierProgramDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() =>
+                toast.message('Export (demo)', {
+                  description: 'In production this downloads the full supplier status CSV for program management.',
+                })
+              }
               className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#E2E8F0] bg-white text-gray-600 hover:bg-gray-50 flex items-center gap-1.5"
             >
               <Download className="h-3.5 w-3.5" /> Export status report
@@ -137,6 +143,41 @@ export function SupplierProgramDashboard() {
               </ul>
             </div>
           </div>
+        </section>
+
+        {/* Adding users & bulk import (§1) */}
+        <section className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">People & intake</h3>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            Each supplier run carries a stable <code className="text-[10px] bg-gray-100 px-1 rounded">supplier_onboarding_id</code> on
+            the session and on People records (reference field) so documents, sessions, and audit line up. Add contacts in{' '}
+            <strong>People</strong> or use <strong>Integrations → Import</strong> for a sourcing-list CSV (demo accepts the
+            import flow without persisting to a server).
+          </p>
+        </section>
+
+        {/* Preview / approve invite (§3) */}
+        <section className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">Session plan → invite</h3>
+          <p className="text-xs text-gray-600 leading-relaxed mb-3">
+            SPE reviews the generated plan (opening email, agenda, requirements, validation, reminders). In production you
+            adjust addenda, deadlines, or toggles — then <strong>approve</strong> to dispatch the resumable link. In this demo,
+            open <strong>Templates</strong> or <strong>Sessions</strong> to see the same flow shell with scripted sessions.
+          </p>
+          <ul className="text-xs text-gray-500 space-y-1 list-disc pl-4">
+            <li>Step updates on sessions show “session plan generated” and invite progress.</li>
+            <li>Agent answers questions about pipeline without calling a live backend.</li>
+          </ul>
+        </section>
+
+        {/* Compliance calendar & recertification (§7) */}
+        <section className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-900 mb-2">Compliance calendar & recertification</h3>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            <strong>60 days</strong> before COI expiry, production would enqueue a <strong>recertification</strong> dispatch
+            to the supplier (no manual SPE tracking). The <strong>Program</strong> filters and Agent “COI expiring in 30 days”
+            query illustrate that queue.
+          </p>
         </section>
 
         {/* Pipeline */}

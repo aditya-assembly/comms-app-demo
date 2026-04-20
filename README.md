@@ -27,3 +27,18 @@ Output: `dist/`. Use `npm run build:strict` if you want TypeScript checking befo
 ## Notes
 
 - Auth and workspace state use separate localStorage keys (`comms-demo-auth`, `comms-demo-workspace`) so they do not clash with a local production Comms app.
+
+## QA (supplier onboarding use case)
+
+Same **routing and shell** as production Comms (`/app/*` → `AppShell`: Program dashboard, Agent, Templates, Sessions, Conversations, People, Integrations; session and conversation overlays unchanged). Differences: root **`/`** is the **use cases** picker; **`MockCommsAPI`** replaces all HTTP calls.
+
+| Area | Covered in demo |
+|------|------------------|
+| Stable IDs | `supplier_onboarding_id` on session metadata + People `reference` (`soi-*`) |
+| Intake | People + Integrations CSV import (mocked success) |
+| Comms setup | Program dashboard: channel, checklist, reminders, validation narrative |
+| Preview → invite | Dashboard copy + Templates/Sessions with scripted step updates |
+| Analysis | Pipeline, filters, TAT, SPE queue, export toast |
+| Q&A | Agent scripted answers (COI, MSA, programs, CA addenda, SharePoint, Venda, exceptions, escalation) |
+| Exceptions | Dashboard cards + Agent |
+| CRM / calendar | People + recertification / 60-day copy on dashboard |
