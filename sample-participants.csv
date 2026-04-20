@@ -1,0 +1,16 @@
+Email,First Name,Last Name,Phone,Company,Job Title,Reference,Department,Location,Notes
+alice.johnson@acme.com,Alice,Johnson,+1-415-555-0101,Acme Corp,Product Manager,REF-001,Engineering,San Francisco,Key stakeholder for Q3 launch
+bob.martinez@globex.com,Bob,Martinez,+1-212-555-0102,Globex Inc,Software Engineer,REF-002,R&D,New York,Backend lead
+carol.chen@initech.com,Carol,Chen,,Initech,VP of Sales,REF-003,Sales,Austin,Prefers email contact
+david.okafor@umbrella.co,David,Okafor,+44-20-7946-0104,Umbrella Ltd,Data Analyst,,Analytics,London,EMEA region
+emma.wilson@soylent.io,Emma,Wilson,+1-310-555-0105,Soylent Corp,Designer,REF-005,Design,Los Angeles,
+frank.dubois@waystar.com,Frank,Dubois,+33-1-42-68-0106,Waystar Royco,CFO,REF-006,Finance,Paris,Executive sponsor
+grace.kim@piedpiper.com,Grace,Kim,+1-650-555-0107,Pied Piper,Engineering Manager,REF-007,Engineering,Palo Alto,Technical decision maker
+hiro.tanaka@kaizen.jp,Hiro,Tanaka,+81-3-1234-0108,Kaizen Solutions,CTO,,Engineering,Tokyo,APAC lead
+isabella.rossi@luxottica.it,Isabella,Rossi,,Luxottica Group,Marketing Director,REF-009,Marketing,Milan,Brand partnership contact
+james.wright@tesla.com,James,Wright,+1-512-555-0110,Tesla,Operations Lead,REF-010,Operations,Austin,
+kate.nguyen@stripe.com,Kate,Nguyen,+1-415-555-0111,Stripe,Account Executive,,Sales,San Francisco,Renewal due Sept
+liam.patel@shopify.com,Liam,Patel,+1-613-555-0112,Shopify,Support Manager,REF-012,Support,Ottawa,Escalation contact
+maria.garcia@notion.so,Maria,Garcia,,Notion,Head of People,REF-013,HR,San Francisco,Hiring manager
+noah.anderson@datadog.com,Noah,Anderson,+1-646-555-0114,Datadog,SRE Lead,REF-014,Infrastructure,New York,On-call rotation owner
+olivia.brown@figma.com,Olivia,Brown,+1-415-555-0115,Figma,Product Designer,,Design,San Francisco,Design system contributor
